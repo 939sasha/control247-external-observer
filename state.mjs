@@ -52,7 +52,7 @@ export function openState({body,key,persist,initialize=false}) {
   },save,async prune(){
     const count=sql.prepare("SELECT count(*) AS n FROM notices WHERE state IN ('pending','claimed','uncertain')").get().n;
     if(count>128)throw new Error('manual_delivery_review_required');
-    sql.exec("DELETE FROM notices WHERE state IN ('sent','failed') AND id NOT IN (SELECT id FROM notices ORDER BY created DESC,id DESC LIMIT 32)");
+    sql.exec("DELETE FROM notices WHERE state IN ('sent','failed') AND id!='channel-test-v1' AND id NOT IN (SELECT id FROM notices ORDER BY created DESC,id DESC LIMIT 32)");
     await save();
   },close(){sql.close();rmSync(directory,{recursive:true,force:true});}};
 }
