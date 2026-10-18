@@ -50,9 +50,9 @@ export function openState({body,key,persist,initialize=false}) {
     catch(error){sql.exec('ROLLBACK');throw error;}
     await save();return results;
   },save,async prune(){
-    const count=sql.prepare("SELECT count(*) AS n FROM notices WHERE state IN ('pending','claimed','uncertain')").get().n;
+    const count=sql.prepare("SELECT count(*) AS n FROM notices WHERE state IN ('pending','claimed','uncertain','failed')").get().n;
     if(count>128)throw new Error('manual_delivery_review_required');
-    sql.exec("DELETE FROM notices WHERE state IN ('sent','failed') AND id!='channel-test-v1' AND id NOT IN (SELECT id FROM notices ORDER BY created DESC,id DESC LIMIT 32)");
+    sql.exec("DELETE FROM notices WHERE state='sent' AND id!='channel-test-v1' AND id NOT IN (SELECT id FROM notices ORDER BY created DESC,id DESC LIMIT 32)");
     await save();
   },close(){sql.close();rmSync(directory,{recursive:true,force:true});}};
 }
