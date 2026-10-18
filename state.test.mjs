@@ -4,8 +4,26 @@ import {readFileSync} from 'node:fs';
 import {seal,unseal,keyFromHex,openState,issueStorage} from './state.mjs';
 import {initialBody} from './init.mjs';
 import {runObserver,telegramNotifier} from './observer.mjs';
-import {validTarget,maintainSchedule,main,testChannel} from './run.mjs';
+import {validTarget,maintainSchedule,main,testChannel,assertDeliveryReceipts} from './run.mjs';
 const hex='ab'.repeat(32),key=keyFromHex(hex);
+
+test('unconfirmed historical deliveries remain visible across restart and pruning',async()=>{
+ for(const state of ['claimed','uncertain','failed']){
+  let body=await initialBody(hex);
+  const db=openState({body,key,persist:async value=>{body=value;}});
+  await db.prepare('INSERT INTO notices(id,kind,episode,state,created) VALUES(?,?,?,?,?)').bind('old','down',1,state,1).run();
+  for(let i=0;i<40;i++)await db.prepare("INSERT INTO notices(id,kind,episode,state,created) VALUES(?, 'recovery',1,'sent',?)").bind('new'+i,i+2).run();
+  await db.prune();db.close();
+  const restored=openState({body,key,persist:async()=>{}});
+  assert.equal((await restored.prepare("SELECT state FROM notices WHERE id='old'").first()).state,state);
+  await assert.rejects(assertDeliveryReceipts(restored),/manual_review/);restored.close();
+ }
+});
+test('confirmed delivery history allows healthy workflow completion',async()=>{
+ const db=openState({body:await initialBody(hex),key,persist:async()=>{}});
+ await db.prepare("INSERT INTO notices(id,kind,episode,state,created) VALUES('confirmed','down',1,'sent',1)").run();
+ await assertDeliveryReceipts(db);db.close();
+});
 
 test('manual channel test persists claim, sends once across restarts and preserves monitor',async()=>{
  let body=await initialBody(hex),sent=0;
