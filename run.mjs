@@ -1,7 +1,7 @@
 import { createConnection,isIP } from 'node:net';
 import { Readable } from 'node:stream';
 import { pathToFileURL } from 'node:url';
-import { runObserver,sshReachable,telegramNotifier } from './observer.mjs';
+import { runObserver,sshReachable,telegramNotifier,deliver } from './observer.mjs';
 import { issueStorage,keyFromHex,openState } from './state.mjs';
 
 export function validTarget(host){
@@ -30,6 +30,13 @@ export async function maintainSchedule(env,request=fetch,now=Date.now()){
   if(!result.ok)throw new Error('heartbeat_commit_failed');
   return true;
 }
+export async function testChannel(db,notify,now){
+  await db.prepare("INSERT OR IGNORE INTO notices(id,kind,episode,state,created) VALUES('channel-test-v1','channel_test',0,'pending',?)").bind(now).run();
+  const previous=await db.prepare("SELECT state FROM notices WHERE id='channel-test-v1'").first();
+  if(previous.state==='pending')await deliver(db,notify,now);
+  const receipt=await db.prepare("SELECT state FROM notices WHERE id='channel-test-v1'").first();
+  if(receipt.state!=='sent')throw new Error('channel_test_manual_review_required');
+}
 export async function main(env=process.env){
   if(env.GITHUB_ACTIONS!=='true')throw new Error('github_workflow_only');
   if(!validTarget(env.MONITOR_HOST))throw new Error('public_target_required');
@@ -38,6 +45,10 @@ export async function main(env=process.env){
   try{
     const now=Date.now();
     const result=await runObserver({db,probe:()=>sshReachable(connect,{hostname:env.MONITOR_HOST}),notify:telegramNotifier(env),scheduledTime:now,now});
+    if(env.OBSERVER_TEST_CHANNEL==='true'){
+      if(env.GITHUB_EVENT_NAME!=='workflow_dispatch')throw new Error('manual_test_only');
+      await testChannel(db,telegramNotifier(env),now);
+    }
     await db.prune();
     await maintainSchedule(env);
     if(['uncertain','claimed'].includes(result.delivery))throw new Error('delivery_manual_review_required');
