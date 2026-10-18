@@ -30,6 +30,10 @@ export async function maintainSchedule(env,request=fetch,now=Date.now()){
   if(!result.ok)throw new Error('heartbeat_commit_failed');
   return true;
 }
+export async function assertDeliveryReceipts(db){
+  const unresolved=await db.prepare("SELECT id FROM notices WHERE state IN ('claimed','uncertain','failed') LIMIT 1").first();
+  if(unresolved)throw new Error('delivery_manual_review_required');
+}
 export async function testChannel(db,notify,now){
   await db.prepare("INSERT OR IGNORE INTO notices(id,kind,episode,state,created) VALUES('channel-test-v1','channel_test',0,'pending',?)").bind(now).run();
   const previous=await db.prepare("SELECT state FROM notices WHERE id='channel-test-v1'").first();
@@ -50,6 +54,7 @@ export async function main(env=process.env){
       await testChannel(db,telegramNotifier(env),now);
     }
     await db.prune();
+    await assertDeliveryReceipts(db);
     await maintainSchedule(env);
     if(['uncertain','claimed'].includes(result.delivery))throw new Error('delivery_manual_review_required');
   }finally{db.close();}
