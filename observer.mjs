@@ -68,7 +68,9 @@ export async function sshReachable(connect,{timeoutMs=8000,hostname}={}) {
 export function telegramNotifier(env,request=fetch) {
   if (!/^\d{1,20}$/.test(env.OWNER_ID||'') || !/^\d{6,15}:[A-Za-z0-9_-]{20,}$/.test(env.BOT_TOKEN||'')) throw new Error('observer_secret_configuration_invalid');
   return async notice=>{
-    const text=notice.kind==='down'
+    const text=notice.kind==='channel_test'
+      ? '🛰 Внешний наблюдатель подключён.\n✅ Проверка из GitHub и доставка в этот бот работают.\nЭто тест связи, а не сообщение о сбое.'
+      : notice.kind==='down'
       ? '⚠️ Внешняя связь с VDS недоступна: две последовательные проверки SSH не прошли. Возможна проблема сервера, сети или SSH. Полное выключение сервера не установлено.'
       : '✅ Внешняя связь с VDS восстановилась: SSH снова отвечает. Работа продуктов требует отдельных проверок.';
     try {
