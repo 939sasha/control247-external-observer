@@ -3,6 +3,11 @@ on:
   schedule:
     - cron: '2-57/5 * * * *'
   workflow_dispatch:
+    inputs:
+      test_channel:
+        description: Send the one-time labelled channel test
+        type: boolean
+        default: false
 permissions:
   contents: write
   issues: write
@@ -29,3 +34,4 @@ jobs:
           OWNER_ID: ${{ secrets.OWNER_ID }}
           OBSERVER_STATE_KEY: ${{ secrets.OBSERVER_STATE_KEY }}
           STATE_ISSUE: ${{ vars.STATE_ISSUE }}
+          OBSERVER_TEST_CHANNEL: ${{ inputs.test_channel }}
