@@ -4,8 +4,26 @@ import {readFileSync} from 'node:fs';
 import {seal,unseal,keyFromHex,openState,issueStorage} from './state.mjs';
 import {initialBody} from './init.mjs';
 import {runObserver,telegramNotifier} from './observer.mjs';
-import {validTarget,maintainSchedule,main} from './run.mjs';
+import {validTarget,maintainSchedule,main,testChannel} from './run.mjs';
 const hex='ab'.repeat(32),key=keyFromHex(hex);
+
+test('manual channel test persists claim, sends once across restarts and preserves monitor',async()=>{
+ let body=await initialBody(hex),sent=0;
+ for(let i=0;i<2;i++){
+  const db=openState({body,key,persist:async value=>{body=value;}});
+  await testChannel(db,async notice=>{assert.equal(notice.kind,'channel_test');sent++;return 'sent';},100+i);
+  assert.equal((await db.prepare('SELECT version FROM monitor').first()).version,0);db.close();
+ }
+ assert.equal(sent,1);
+});
+test('ambiguous channel test is retained and never sent again',async()=>{
+ let body=await initialBody(hex),sent=0;
+ for(let i=0;i<2;i++){
+  const db=openState({body,key,persist:async value=>{body=value;}});
+  await assert.rejects(testChannel(db,async()=>{sent++;return 'uncertain';},100+i),/manual_review/);db.close();
+ }
+ assert.equal(sent,1);
+});
 
 test('state survives authenticated remote roundtrip; ciphertext hides SQLite and content',async()=>{
  let body=await initialBody(hex);assert.ok(!body.includes('SQLite'));assert.ok(!body.includes('unknown'));
